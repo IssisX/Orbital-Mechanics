@@ -1,0 +1,1456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Advanced Orbital Mechanics Simulator - R3F + Cannon.js</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        html, body, #root {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Inter', sans-serif;
+            color: #fff;
+            touch-action: none;
+        }
+        
+        canvas { display: block; }
+        
+        /* HUD Overlay */
+        .hud-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        .top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 20px;
+            background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: all;
+        }
+        
+        .title {
+            font-family: 'Orbitron', monospace;
+            font-size: 24px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #00ffaa 0%, #00aaff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(0,255,170,0.5);
+        }
+        
+        .stats-panel {
+            background: rgba(0, 10, 20, 0.9);
+            border: 1px solid rgba(0,255,170,0.3);
+            border-radius: 12px;
+            padding: 15px;
+            min-width: 250px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0,255,170,0.2);
+        }
+        
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-size: 13px;
+        }
+        
+        .stat-label {
+            color: #aaa;
+            font-weight: 300;
+        }
+        
+        .stat-value {
+            color: #00ffaa;
+            font-weight: 600;
+            font-family: 'Orbitron', monospace;
+        }
+        
+        .control-panel {
+            position: absolute;
+            right: 20px;
+            top: 100px;
+            background: rgba(0, 10, 20, 0.95);
+            border: 1px solid rgba(0,255,170,0.3);
+            border-radius: 16px;
+            padding: 20px;
+            width: 320px;
+            max-height: calc(100vh - 120px);
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+            pointer-events: all;
+            box-shadow: 0 8px 32px rgba(0,255,170,0.3);
+        }
+        
+        .control-section {
+            margin-bottom: 25px;
+        }
+        
+        .control-section h3 {
+            font-family: 'Orbitron', monospace;
+            font-size: 14px;
+            color: #00ffaa;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group label {
+            display: block;
+            font-size: 11px;
+            color: #aaa;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .control-group input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: linear-gradient(90deg, rgba(0,255,170,0.2), rgba(0,170,255,0.2));
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #00ffaa, #00aaff);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0,255,170,0.8);
+        }
+        
+        .control-group input[type="number"],
+        .control-group input[type="color"] {
+            width: 100%;
+            padding: 8px;
+            background: rgba(0,20,40,0.6);
+            border: 1px solid rgba(0,255,170,0.3);
+            border-radius: 6px;
+            color: #fff;
+            font-family: 'Orbitron', monospace;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 12px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Orbitron', monospace;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #00ffaa 0%, #00aaff 100%);
+            color: #000;
+            box-shadow: 0 4px 20px rgba(0,255,170,0.4);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px rgba(0,255,170,0.6);
+        }
+        
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: #00ffaa;
+            border: 1px solid rgba(0,255,170,0.3);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(0,255,170,0.2);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ff4466 0%, #ff0044 100%);
+            color: #fff;
+        }
+        
+        .preset-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .touch-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            pointer-events: all;
+        }
+        
+        .joystick {
+            width: 120px;
+            height: 120px;
+            background: radial-gradient(circle, rgba(0,255,170,0.2), transparent);
+            border: 2px solid rgba(0,255,170,0.5);
+            border-radius: 50%;
+            position: relative;
+            touch-action: none;
+        }
+        
+        .joystick-knob {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #00ffaa, #00aaff);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 20px rgba(0,255,170,0.8);
+            transition: transform 0.1s ease;
+        }
+        
+        .analytics-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 10, 20, 0.95);
+            border: 1px solid rgba(0,255,170,0.3);
+            border-radius: 12px;
+            padding: 15px;
+            width: 300px;
+            backdrop-filter: blur(10px);
+            pointer-events: all;
+        }
+        
+        .chart-container {
+            width: 100%;
+            height: 120px;
+            margin-top: 10px;
+        }
+        
+        .collision-log {
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 10px;
+            font-family: 'Courier New', monospace;
+            color: #0ff;
+            margin-top: 10px;
+        }
+        
+        .collision-entry {
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(0,255,255,0.1);
+        }
+        
+        @media (max-width: 768px) {
+            .control-panel {
+                width: calc(100% - 40px);
+                max-height: 50vh;
+                right: 20px;
+                left: 20px;
+                top: auto;
+                bottom: 180px;
+                transform: translateY(calc(100% + 160px));
+                transition: transform 0.3s ease;
+            }
+            
+            .control-panel.open {
+                transform: translateY(0);
+            }
+            
+            .analytics-panel {
+                display: none;
+            }
+            
+            .title {
+                font-size: 18px;
+            }
+        }
+        
+        .toggle-btn {
+            position: absolute;
+            bottom: 160px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #00ffaa, #00aaff);
+            border: none;
+            cursor: pointer;
+            pointer-events: all;
+            box-shadow: 0 4px 20px rgba(0,255,170,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.3);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #00ffaa, #00aaff);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.3.1",
+            "react-dom": "https://esm.sh/react-dom@18.3.1",
+            "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+            "three": "https://esm.sh/three@0.167.1",
+            "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.17.5",
+            "@react-three/drei": "https://esm.sh/@react-three/drei@9.115.0",
+            "cannon-es": "https://esm.sh/cannon-es@0.20.0",
+            "zustand": "https://esm.sh/zustand@4.5.4"
+        }
+    }
+    </script>
+    
+    <script type="module">
+        import React, { useRef, useState, useEffect, useMemo, useCallback, Suspense, createContext, useContext } from 'react';
+        import ReactDOM from 'react-dom/client';
+        import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
+        import { OrbitControls, Stars, Environment, Trail, PerspectiveCamera, Html } from '@react-three/drei';
+        import * as THREE from 'three';
+        import * as CANNON from 'cannon-es';
+        import { create } from 'zustand';
+        
+        // ============================================================================
+        // CONSTANTS & CONFIGURATION
+        // ============================================================================
+        
+        const GRAVITY_CONSTANT = 80;
+        const MAX_BODIES = 30;
+        const SUBSTEPS = 6;
+        const TIMESTEP = 1 / 120;
+        const DEBRIS_LIFETIME = 5000;
+        const MAX_DEBRIS = 200;
+        
+        // ============================================================================
+        // ZUSTAND STATE MANAGEMENT
+        // ============================================================================
+        
+        const useStore = create((set, get) => ({
+            bodies: [],
+            debris: [],
+            collisionLog: [],
+            analytics: { kineticEnergy: [], potentialEnergy: [], totalMomentum: [] },
+            cameraMode: 'orbit', // orbit, follow, free
+            selectedBody: null,
+            audioEnabled: true,
+            showTrails: true,
+            timeScale: 1.0,
+            
+            addBody: (body) => set(state => ({ 
+                bodies: state.bodies.length < MAX_BODIES ? [...state.bodies, body] : state.bodies 
+            })),
+            
+            removeBody: (id) => set(state => ({
+                bodies: state.bodies.filter(b => b.id !== id)
+            })),
+            
+            updateBody: (id, updates) => set(state => ({
+                bodies: state.bodies.map(b => b.id === id ? { ...b, ...updates } : b)
+            })),
+            
+            addDebris: (particles) => set(state => ({
+                debris: [...state.debris, ...particles].slice(-MAX_DEBRIS)
+            })),
+            
+            updateDebris: () => set(state => ({
+                debris: state.debris.filter(d => Date.now() - d.birthTime < DEBRIS_LIFETIME)
+            })),
+            
+            logCollision: (message) => set(state => ({
+                collisionLog: [{ time: new Date().toLocaleTimeString(), message }, ...state.collisionLog].slice(0, 20)
+            })),
+            
+            updateAnalytics: (ke, pe, momentum) => set(state => ({
+                analytics: {
+                    kineticEnergy: [...state.analytics.kineticEnergy, ke].slice(-50),
+                    potentialEnergy: [...state.analytics.potentialEnergy, pe].slice(-50),
+                    totalMomentum: [...state.analytics.totalMomentum, momentum].slice(-50)
+                }
+            })),
+            
+            reset: () => set({
+                bodies: [],
+                debris: [],
+                collisionLog: [],
+                analytics: { kineticEnergy: [], potentialEnergy: [], totalMomentum: [] }
+            })
+        }));
+        
+        // ============================================================================
+        // PHYSICS WORLD SETUP
+        // ============================================================================
+        
+        const world = new CANNON.World({
+            gravity: new CANNON.Vec3(0, 0, 0)
+        });
+        world.broadphase = new CANNON.NaiveBroadphase();
+        world.solver.iterations = 20;
+        
+        const cannonBodies = new Map();
+        
+        // ============================================================================
+        // SHADERS - PROCEDURAL PLANETS WITH ATMOSPHERE
+        // ============================================================================
+        
+        const PlanetMaterial = ({ color, atmosphereColor, noiseScale = 1.0 }) => {
+            const materialRef = useRef();
+            
+            useFrame(({ clock }) => {
+                if (materialRef.current) {
+                    materialRef.current.uniforms.time.value = clock.elapsedTime;
+                }
+            });
+            
+            const uniforms = useMemo(() => ({
+                time: { value: 0 },
+                color: { value: new THREE.Color(color) },
+                atmosphereColor: { value: new THREE.Color(atmosphereColor) },
+                noiseScale: { value: noiseScale }
+            }), [color, atmosphereColor, noiseScale]);
+            
+            return (
+                <shaderMaterial
+                    ref={materialRef}
+                    uniforms={uniforms}
+                    vertexShader={`
+                        varying vec3 vNormal;
+                        varying vec3 vPosition;
+                        varying vec2 vUv;
+                        varying vec3 vWorldPosition;
+                        
+                        void main() {
+                            vNormal = normalize(normalMatrix * normal);
+                            vPosition = position;
+                            vUv = uv;
+                            vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                            vWorldPosition = worldPos.xyz;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `}
+                    fragmentShader={`
+                        uniform float time;
+                        uniform vec3 color;
+                        uniform vec3 atmosphereColor;
+                        uniform float noiseScale;
+                        
+                        varying vec3 vNormal;
+                        varying vec3 vPosition;
+                        varying vec2 vUv;
+                        varying vec3 vWorldPosition;
+                        
+                        // Simplex 3D noise
+                        vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+                        vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+                        vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+                        vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+                        
+                        float snoise(vec3 v) {
+                            const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+                            const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+                            vec3 i  = floor(v + dot(v, C.yyy));
+                            vec3 x0 = v - i + dot(i, C.xxx);
+                            vec3 g = step(x0.yzx, x0.xyz);
+                            vec3 l = 1.0 - g;
+                            vec3 i1 = min(g.xyz, l.zxy);
+                            vec3 i2 = max(g.xyz, l.zxy);
+                            vec3 x1 = x0 - i1 + C.xxx;
+                            vec3 x2 = x0 - i2 + C.yyy;
+                            vec3 x3 = x0 - D.yyy;
+                            i = mod289(i);
+                            vec4 p = permute(permute(permute(
+                                i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                                + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                                + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+                            float n_ = 0.142857142857;
+                            vec3 ns = n_ * D.wyz - D.xzx;
+                            vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+                            vec4 x_ = floor(j * ns.z);
+                            vec4 y_ = floor(j - 7.0 * x_);
+                            vec4 x = x_ *ns.x + ns.yyyy;
+                            vec4 y = y_ *ns.x + ns.yyyy;
+                            vec4 h = 1.0 - abs(x) - abs(y);
+                            vec4 b0 = vec4(x.xy, y.xy);
+                            vec4 b1 = vec4(x.zw, y.zw);
+                            vec4 s0 = floor(b0)*2.0 + 1.0;
+                            vec4 s1 = floor(b1)*2.0 + 1.0;
+                            vec4 sh = -step(h, vec4(0.0));
+                            vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+                            vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+                            vec3 p0 = vec3(a0.xy, h.x);
+                            vec3 p1 = vec3(a0.zw, h.y);
+                            vec3 p2 = vec3(a1.xy, h.z);
+                            vec3 p3 = vec3(a1.zw, h.w);
+                            vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+                            p0 *= norm.x;
+                            p1 *= norm.y;
+                            p2 *= norm.z;
+                            p3 *= norm.w;
+                            vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+                            m = m * m;
+                            return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+                        }
+                        
+                        void main() {
+                            vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+                            float fresnel = pow(1.0 - dot(viewDirection, vNormal), 3.0);
+                            
+                            // Procedural surface noise
+                            float noise1 = snoise(vPosition * noiseScale + time * 0.05);
+                            float noise2 = snoise(vPosition * noiseScale * 2.0 - time * 0.03);
+                            float combinedNoise = (noise1 + noise2 * 0.5) * 0.5 + 0.5;
+                            
+                            vec3 surfaceColor = mix(color * 0.6, color * 1.4, combinedNoise);
+                            vec3 finalColor = mix(surfaceColor, atmosphereColor, fresnel * 0.7);
+                            
+                            // Rim lighting
+                            float rim = pow(1.0 - abs(dot(viewDirection, vNormal)), 2.0);
+                            finalColor += atmosphereColor * rim * 0.5;
+                            
+                            gl_FragColor = vec4(finalColor, 1.0);
+                        }
+                    `}
+                />
+            );
+        };
+        
+        // ============================================================================
+        // CELESTIAL BODY COMPONENT
+        // ============================================================================
+        
+        const CelestialBody = ({ id, position, velocity, mass, color, atmosphereColor }) => {
+            const meshRef = useRef();
+            const trailRef = useRef();
+            const lightRef = useRef();
+            const { showTrails } = useStore();
+            
+            const radius = Math.cbrt(mass) * 0.3 + 0.15;
+            
+            // Initialize Cannon body
+            useEffect(() => {
+                const shape = new CANNON.Sphere(radius);
+                const body = new CANNON.Body({
+                    mass,
+                    position: new CANNON.Vec3(...position),
+                    velocity: new CANNON.Vec3(...velocity),
+                    shape
+                });
+                
+                body.userData = { id, type: 'planet', mass, radius, color };
+                world.addBody(body);
+                cannonBodies.set(id, body);
+                
+                return () => {
+                    world.removeBody(body);
+                    cannonBodies.delete(id);
+                };
+            }, []);
+            
+            // Update Three.js mesh from Cannon body
+            useFrame(() => {
+                const cannonBody = cannonBodies.get(id);
+                if (!cannonBody || !meshRef.current) return;
+                
+                meshRef.current.position.copy(cannonBody.position);
+                meshRef.current.quaternion.copy(cannonBody.quaternion);
+                
+                if (lightRef.current) {
+                    lightRef.current.position.copy(cannonBody.position);
+                }
+            });
+            
+            return (
+                <group>
+                    <Trail
+                        width={radius * 1.5}
+                        length={showTrails ? 30 : 0}
+                        color={new THREE.Color(color)}
+                        attenuation={(t) => t * t}
+                        ref={trailRef}
+                    >
+                        <mesh ref={meshRef} castShadow receiveShadow>
+                            <sphereGeometry args={[radius, 64, 64]} />
+                            <PlanetMaterial 
+                                color={color} 
+                                atmosphereColor={atmosphereColor || color}
+                                noiseScale={1.0 / radius}
+                            />
+                        </mesh>
+                    </Trail>
+                    
+                    {/* Atmosphere glow */}
+                    <mesh position={meshRef.current?.position} scale={1.15}>
+                        <sphereGeometry args={[radius * 1.15, 32, 32]} />
+                        <meshBasicMaterial
+                            color={atmosphereColor || color}
+                            transparent
+                            opacity={0.15}
+                            side={THREE.BackSide}
+                        />
+                    </mesh>
+                    
+                    <pointLight
+                        ref={lightRef}
+                        color={color}
+                        intensity={mass * 1.5}
+                        distance={50}
+                        decay={2}
+                    />
+                </group>
+            );
+        };
+        
+        // ============================================================================
+        // DEBRIS PARTICLE SYSTEM
+        // ============================================================================
+        
+        const DebrisSystem = () => {
+            const { debris, updateDebris } = useStore();
+            const meshRef = useRef();
+            const geometryRef = useRef();
+            
+            useEffect(() => {
+                geometryRef.current = new THREE.BufferGeometry();
+                const positions = new Float32Array(MAX_DEBRIS * 3);
+                const colors = new Float32Array(MAX_DEBRIS * 3);
+                const sizes = new Float32Array(MAX_DEBRIS);
+                
+                geometryRef.current.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                geometryRef.current.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                geometryRef.current.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+            }, []);
+            
+            useFrame(() => {
+                updateDebris();
+                
+                if (!geometryRef.current) return;
+                
+                const positions = geometryRef.current.attributes.position.array;
+                const colors = geometryRef.current.attributes.color.array;
+                const sizes = geometryRef.current.attributes.size.array;
+                
+                debris.forEach((d, i) => {
+                    const idx = i * 3;
+                    positions[idx] = d.position.x;
+                    positions[idx + 1] = d.position.y;
+                    positions[idx + 2] = d.position.z;
+                    
+                    const age = (Date.now() - d.birthTime) / DEBRIS_LIFETIME;
+                    const alpha = 1.0 - age;
+                    
+                    colors[idx] = d.color.r * alpha;
+                    colors[idx + 1] = d.color.g * alpha;
+                    colors[idx + 2] = d.color.b * alpha;
+                    
+                    sizes[i] = d.size * alpha;
+                    
+                    // Update debris physics
+                    d.velocity.multiplyScalar(0.995);
+                    d.position.add(d.velocity.clone().multiplyScalar(0.016));
+                });
+                
+                geometryRef.current.attributes.position.needsUpdate = true;
+                geometryRef.current.attributes.color.needsUpdate = true;
+                geometryRef.current.attributes.size.needsUpdate = true;
+            });
+            
+            const vertexShader = `
+                attribute float size;
+                attribute vec3 color;
+                varying vec3 vColor;
+                
+                void main() {
+                    vColor = color;
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    gl_PointSize = size * (300.0 / -mvPosition.z);
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `;
+            
+            const fragmentShader = `
+                varying vec3 vColor;
+                
+                void main() {
+                    float dist = length(gl_PointCoord - vec2(0.5));
+                    if (dist > 0.5) discard;
+                    
+                    float alpha = 1.0 - (dist * 2.0);
+                    gl_FragColor = vec4(vColor, alpha);
+                }
+            `;
+            
+            return (
+                <points ref={meshRef}>
+                    <bufferGeometry ref={geometryRef} />
+                    <shaderMaterial
+                        vertexShader={vertexShader}
+                        fragmentShader={fragmentShader}
+                        transparent
+                        depthWrite={false}
+                        blending={THREE.AdditiveBlending}
+                        vertexColors
+                    />
+                </points>
+            );
+        };
+        
+        // ============================================================================
+        // PHYSICS ENGINE & N-BODY GRAVITY
+        // ============================================================================
+        
+        const PhysicsEngine = () => {
+            const { bodies, addDebris, logCollision, updateAnalytics, timeScale } = useStore();
+            
+            useFrame((state, delta) => {
+                const scaledDelta = Math.min(delta * timeScale, 1/30);
+                
+                // Apply n-body gravitational forces
+                const bodiesArray = Array.from(cannonBodies.values());
+                
+                bodiesArray.forEach((bodyA, i) => {
+                    bodyA.force.set(0, 0, 0);
+                    
+                    bodiesArray.forEach((bodyB, j) => {
+                        if (i >= j) return;
+                        
+                        const dx = bodyB.position.x - bodyA.position.x;
+                        const dy = bodyB.position.y - bodyA.position.y;
+                        const dz = bodyB.position.z - bodyA.position.z;
+                        const distSq = dx*dx + dy*dy + dz*dz;
+                        
+                        if (distSq < 0.01) return;
+                        
+                        const dist = Math.sqrt(distSq);
+                        const forceMag = (GRAVITY_CONSTANT * bodyA.mass * bodyB.mass) / distSq;
+                        
+                        const forceX = (dx / dist) * forceMag;
+                        const forceY = (dy / dist) * forceMag;
+                        const forceZ = (dz / dist) * forceMag;
+                        
+                        bodyA.force.x += forceX;
+                        bodyA.force.y += forceY;
+                        bodyA.force.z += forceZ;
+                        
+                        bodyB.force.x -= forceX;
+                        bodyB.force.y -= forceY;
+                        bodyB.force.z -= forceZ;
+                    });
+                });
+                
+                // Step physics world
+                world.step(TIMESTEP, scaledDelta, SUBSTEPS);
+                
+                // Analytics calculation
+                let ke = 0, pe = 0;
+                const momentum = new THREE.Vector3();
+                
+                bodiesArray.forEach((bodyA, i) => {
+                    const velSq = bodyA.velocity.lengthSquared();
+                    ke += 0.5 * bodyA.mass * velSq;
+                    momentum.add(new THREE.Vector3(
+                        bodyA.velocity.x * bodyA.mass,
+                        bodyA.velocity.y * bodyA.mass,
+                        bodyA.velocity.z * bodyA.mass
+                    ));
+                    
+                    bodiesArray.forEach((bodyB, j) => {
+                        if (i >= j) return;
+                        const dx = bodyB.position.x - bodyA.position.x;
+                        const dy = bodyB.position.y - bodyA.position.y;
+                        const dz = bodyB.position.z - bodyA.position.z;
+                        const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                        pe -= (GRAVITY_CONSTANT * bodyA.mass * bodyB.mass) / dist;
+                    });
+                });
+                
+                if (state.clock.elapsedTime % 0.5 < 0.016) {
+                    updateAnalytics(ke, pe, momentum.length());
+                }
+            });
+            
+            // Collision detection
+            useEffect(() => {
+                const handleCollision = (event) => {
+                    const { body: bodyA, target: bodyB } = event;
+                    
+                    if (!bodyA.userData || !bodyB.userData) return;
+                    if (bodyA.userData.type !== 'planet' || bodyB.userData.type !== 'planet') return;
+                    
+                    const massA = bodyA.mass;
+                    const massB = bodyB.mass;
+                    const totalMass = massA + massB;
+                    
+                    // Momentum conservation
+                    const newVel = new CANNON.Vec3(
+                        (bodyA.velocity.x * massA + bodyB.velocity.x * massB) / totalMass,
+                        (bodyA.velocity.y * massA + bodyB.velocity.y * massB) / totalMass,
+                        (bodyA.velocity.z * massA + bodyB.velocity.z * massB) / totalMass
+                    );
+                    
+                    const newPos = new CANNON.Vec3(
+                        (bodyA.position.x * massA + bodyB.position.x * massB) / totalMass,
+                        (bodyA.position.y * massA + bodyB.position.y * massB) / totalMass,
+                        (bodyA.position.z * massA + bodyB.position.z * massB) / totalMass
+                    );
+                    
+                    // Create fragmentation debris
+                    const debrisCount = 24;
+                    const debris = [];
+                    
+                    for (let i = 0; i < debrisCount; i++) {
+                        const theta = Math.random() * Math.PI * 2;
+                        const phi = Math.acos(2 * Math.random() - 1);
+                        const speed = 0.5 + Math.random() * 2;
+                        
+                        debris.push({
+                            position: new THREE.Vector3(newPos.x, newPos.y, newPos.z),
+                            velocity: new THREE.Vector3(
+                                Math.sin(phi) * Math.cos(theta) * speed,
+                                Math.sin(phi) * Math.sin(theta) * speed,
+                                Math.cos(phi) * speed
+                            ),
+                            size: 0.1 + Math.random() * 0.3,
+                            color: new THREE.Color(Math.random() > 0.5 ? bodyA.userData.color : bodyB.userData.color),
+                            birthTime: Date.now()
+                        });
+                    }
+                    
+                    addDebris(debris);
+                    logCollision(`Collision: Mass ${massA.toFixed(1)} + ${massB.toFixed(1)} → ${totalMass.toFixed(1)}`);
+                    
+                    // Play collision sound
+                    playCollisionSound(totalMass);
+                    
+                    // Remove old bodies, create merged body
+                    world.removeBody(bodyA);
+                    world.removeBody(bodyB);
+                    
+                    const newRadius = Math.cbrt(totalMass) * 0.3 + 0.15;
+                    const newBody = new CANNON.Body({
+                        mass: totalMass,
+                        position: newPos,
+                        velocity: newVel,
+                        shape: new CANNON.Sphere(newRadius)
+                    });
+                    
+                    const newColor = massA > massB ? bodyA.userData.color : bodyB.userData.color;
+                    newBody.userData = {
+                        id: `merged-${Date.now()}`,
+                        type: 'planet',
+                        mass: totalMass,
+                        radius: newRadius,
+                        color: newColor
+                    };
+                    
+                    world.addBody(newBody);
+                    cannonBodies.set(newBody.userData.id, newBody);
+                    
+                    // Update React state
+                    const { removeBody, addBody } = useStore.getState();
+                    removeBody(bodyA.userData.id);
+                    removeBody(bodyB.userData.id);
+                    addBody({
+                        id: newBody.userData.id,
+                        position: [newPos.x, newPos.y, newPos.z],
+                        velocity: [newVel.x, newVel.y, newVel.z],
+                        mass: totalMass,
+                        color: newColor,
+                        atmosphereColor: newColor
+                    });
+                };
+                
+                world.addEventListener('collide', handleCollision);
+                
+                return () => {
+                    world.removeEventListener('collide', handleCollision);
+                };
+            }, []);
+            
+            return null;
+        };
+        
+        // ============================================================================
+        // AUDIO SYSTEM
+        // ============================================================================
+        
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        const playCollisionSound = (mass) => {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(200 - mass * 5, audioContext.currentTime);
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.5);
+        };
+        
+        // ============================================================================
+        // CAMERA CONTROLLER
+        // ============================================================================
+        
+        const CameraController = () => {
+            const { camera } = useThree();
+            const { cameraMode, selectedBody, bodies } = useStore();
+            const controlsRef = useRef();
+            
+            useFrame(() => {
+                if (cameraMode === 'follow' && selectedBody && cannonBodies.has(selectedBody)) {
+                    const body = cannonBodies.get(selectedBody);
+                    const targetPos = new THREE.Vector3(
+                        body.position.x + 20,
+                        body.position.y + 15,
+                        body.position.z + 20
+                    );
+                    camera.position.lerp(targetPos, 0.05);
+                    camera.lookAt(body.position.x, body.position.y, body.position.z);
+                } else if (cameraMode === 'orbit' && controlsRef.current) {
+                    // Center on center of mass
+                    if (bodies.length > 0) {
+                        const com = { x: 0, y: 0, z: 0 };
+                        let totalMass = 0;
+                        
+                        bodies.forEach(b => {
+                            const cannonBody = cannonBodies.get(b.id);
+                            if (cannonBody) {
+                                com.x += cannonBody.position.x * cannonBody.mass;
+                                com.y += cannonBody.position.y * cannonBody.mass;
+                                com.z += cannonBody.position.z * cannonBody.mass;
+                                totalMass += cannonBody.mass;
+                            }
+                        });
+                        
+                        if (totalMass > 0) {
+                            com.x /= totalMass;
+                            com.y /= totalMass;
+                            com.z /= totalMass;
+                            controlsRef.current.target.lerp(new THREE.Vector3(com.x, com.y, com.z), 0.05);
+                        }
+                    }
+                }
+            });
+            
+            return (
+                <OrbitControls
+                    ref={controlsRef}
+                    enableDamping
+                    dampingFactor={0.05}
+                    rotateSpeed={0.5}
+                    zoomSpeed={0.8}
+                    minDistance={5}
+                    maxDistance={500}
+                    touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
+                />
+            );
+        };
+        
+        // ============================================================================
+        // SCENE COMPONENT
+        // ============================================================================
+        
+        const Scene = () => {
+            const { bodies } = useStore();
+            
+            return (
+                <>
+                    <CameraController />
+                    
+                    <color attach="background" args={['#000510']} />
+                    <fog attach="fog" args={['#000510', 50, 200]} />
+                    
+                    {/* Lighting */}
+                    <ambientLight intensity={0.1} />
+                    <directionalLight position={[50, 50, 50]} intensity={0.3} />
+                    
+                    {/* Starfield */}
+                    <Stars radius={300} depth={100} count={8000} factor={6} saturation={0} fade speed={0.5} />
+                    
+                    {/* Nebula clouds */}
+                    <mesh position={[-100, 50, -100]} scale={80}>
+                        <sphereGeometry args={[1, 32, 32]} />
+                        <meshBasicMaterial
+                            color="#ff00aa"
+                            transparent
+                            opacity={0.03}
+                            side={THREE.BackSide}
+                        />
+                    </mesh>
+                    
+                    <mesh position={[120, -60, 80]} scale={100}>
+                        <sphereGeometry args={[1, 32, 32]} />
+                        <meshBasicMaterial
+                            color="#00aaff"
+                            transparent
+                            opacity={0.02}
+                            side={THREE.BackSide}
+                        />
+                    </mesh>
+                    
+                    {/* Bodies */}
+                    {bodies.map(body => (
+                        <CelestialBody key={body.id} {...body} />
+                    ))}
+                    
+                    <DebrisSystem />
+                    <PhysicsEngine />
+                    
+                    <Environment preset="night" />
+                </>
+            );
+        };
+        
+        // ============================================================================
+        // UI COMPONENTS
+        // ============================================================================
+        
+        const HUD = () => {
+            const [panelOpen, setPanelOpen] = useState(false);
+            const [newBody, setNewBody] = useState({
+                posX: 25, posY: 0, posZ: 0,
+                velX: 0, velY: 1.2, velZ: 0,
+                mass: 2,
+                color: '#00ffaa'
+            });
+            
+            const {
+                bodies,
+                collisionLog,
+                analytics,
+                addBody,
+                reset,
+                cameraMode,
+                showTrails,
+                timeScale
+            } = useStore();
+            
+            // Calculate stats
+            const totalMass = bodies.reduce((sum, b) => sum + b.mass, 0);
+            const bodyCount = bodies.length;
+            const latestKE = analytics.kineticEnergy[analytics.kineticEnergy.length - 1] || 0;
+            const latestPE = analytics.potentialEnergy[analytics.potentialEnergy.length - 1] || 0;
+            const totalEnergy = latestKE + latestPE;
+            
+            const addNewBody = () => {
+                const id = `body-${Date.now()}`;
+                addBody({
+                    id,
+                    position: [newBody.posX, newBody.posY, newBody.posZ],
+                    velocity: [newBody.velX, newBody.velY, newBody.velZ],
+                    mass: newBody.mass,
+                    color: newBody.color,
+                    atmosphereColor: newBody.color
+                });
+            };
+            
+            const loadPreset = (preset) => {
+                reset();
+                
+                setTimeout(() => {
+                    if (preset === 'solar') {
+                        // Sun
+                        addBody({
+                            id: 'sun',
+                            position: [0, 0, 0],
+                            velocity: [0, 0, 0],
+                            mass: 100,
+                            color: '#ffaa00',
+                            atmosphereColor: '#ff6600'
+                        });
+                        
+                        // Earth
+                        addBody({
+                            id: 'earth',
+                            position: [30, 0, 0],
+                            velocity: [0, 0, 1.4],
+                            mass: 3,
+                            color: '#0088ff',
+                            atmosphereColor: '#00aaff'
+                        });
+                        
+                        // Mars
+                        addBody({
+                            id: 'mars',
+                            position: [45, 0, 0],
+                            velocity: [0, 0, 1.1],
+                            mass: 1.5,
+                            color: '#ff4400',
+                            atmosphereColor: '#ff8844'
+                        });
+                        
+                        // Jupiter
+                        addBody({
+                            id: 'jupiter',
+                            position: [70, 0, 0],
+                            velocity: [0, 0, 0.85],
+                            mass: 20,
+                            color: '#ffbb88',
+                            atmosphereColor: '#ffdd99'
+                        });
+                    } else if (preset === 'binary') {
+                        addBody({
+                            id: 'star1',
+                            position: [-15, 0, 0],
+                            velocity: [0, 0, 0.8],
+                            mass: 40,
+                            color: '#ff0000',
+                            atmosphereColor: '#ff4400'
+                        });
+                        
+                        addBody({
+                            id: 'star2',
+                            position: [15, 0, 0],
+                            velocity: [0, 0, -0.8],
+                            mass: 40,
+                            color: '#0044ff',
+                            atmosphereColor: '#0088ff'
+                        });
+                    } else if (preset === 'trappist') {
+                        addBody({
+                            id: 'trappist-star',
+                            position: [0, 0, 0],
+                            velocity: [0, 0, 0],
+                            mass: 50,
+                            color: '#ff3300',
+                            atmosphereColor: '#ff6600'
+                        });
+                        
+                        for (let i = 0; i < 7; i++) {
+                            const angle = (i / 7) * Math.PI * 2;
+                            const dist = 15 + i * 5;
+                            const vel = Math.sqrt((GRAVITY_CONSTANT * 50) / dist);
+                            
+                            addBody({
+                                id: `trappist-${i}`,
+                                position: [Math.cos(angle) * dist, 0, Math.sin(angle) * dist],
+                                velocity: [-Math.sin(angle) * vel, 0, Math.cos(angle) * vel],
+                                mass: 0.8 + Math.random() * 0.4,
+                                color: `hsl(${i * 50}, 80%, 60%)`,
+                                atmosphereColor: `hsl(${i * 50}, 70%, 70%)`
+                            });
+                        }
+                    } else if (preset === 'chaos') {
+                        for (let i = 0; i < 6; i++) {
+                            addBody({
+                                id: `chaos-${i}`,
+                                position: [
+                                    (Math.random() - 0.5) * 50,
+                                    (Math.random() - 0.5) * 50,
+                                    (Math.random() - 0.5) * 50
+                                ],
+                                velocity: [
+                                    (Math.random() - 0.5) * 2,
+                                    (Math.random() - 0.5) * 2,
+                                    (Math.random() - 0.5) * 2
+                                ],
+                                mass: 5 + Math.random() * 10,
+                                color: `hsl(${Math.random() * 360}, 80%, 60%)`,
+                                atmosphereColor: `hsl(${Math.random() * 360}, 70%, 70%)`
+                            });
+                        }
+                    }
+                }, 100);
+            };
+            
+            return (
+                <div className="hud-container">
+                    <div className="top-bar">
+                        <div className="title">⚛ ORBITAL MECHANICS</div>
+                        <div className="stats-panel">
+                            <div className="stat-row">
+                                <span className="stat-label">Bodies</span>
+                                <span className="stat-value">{bodyCount} / {MAX_BODIES}</span>
+                            </div>
+                            <div className="stat-row">
+                                <span className="stat-label">Total Mass</span>
+                                <span className="stat-value">{totalMass.toFixed(1)}</span>
+                            </div>
+                            <div className="stat-row">
+                                <span className="stat-label">Kinetic E</span>
+                                <span className="stat-value">{latestKE.toFixed(1)}</span>
+                            </div>
+                            <div className="stat-row">
+                                <span className="stat-label">Potential E</span>
+                                <span className="stat-value">{latestPE.toFixed(1)}</span>
+                            </div>
+                            <div className="stat-row">
+                                <span className="stat-label">Total E</span>
+                                <span className="stat-value">{totalEnergy.toFixed(1)}</span>
+                            </div>
+                            <div className="stat-row">
+                                <span className="stat-label">Time Scale</span>
+                                <span className="stat-value">{timeScale.toFixed(1)}x</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className={`control-panel ${panelOpen ? 'open' : ''}`}>
+                        <div className="control-section">
+                            <h3>🪐 Add Body</h3>
+                            <div className="control-group">
+                                <label>Position X</label>
+                                <input
+                                    type="range"
+                                    min="-50"
+                                    max="50"
+                                    step="0.5"
+                                    value={newBody.posX}
+                                    onChange={e => setNewBody({...newBody, posX: parseFloat(e.target.value)})}
+                                />
+                                <input
+                                    type="number"
+                                    value={newBody.posX}
+                                    onChange={e => setNewBody({...newBody, posX: parseFloat(e.target.value)})}
+                                />
+                            </div>
+                            
+                            <div className="control-group">
+                                <label>Position Y</label>
+                                <input
+                                    type="range"
+                                    min="-50"
+                                    max="50"
+                                    step="0.5"
+                                    value={newBody.posY}
+                                    onChange={e => setNewBody({...newBody, posY: parseFloat(e.target.value)})}
+                                />
+                            </div>
+                            
+                            <div className="control-group">
+                                <label>Position Z</label>
+                                <input
+                                    type="range"
+                                    min="-50"
+                                    max="50"
+                                    step="0.5"
+                                    value={newBody.posZ}
+                                    onChange={e => setNewBody({...newBody, posZ: parseFloat(e.target.value)})}
+                                />
+                            </div>
+                            
+                            <div className="control-group">
+                                <label>Velocity X</label>
+                                <input
+                                    type="range"
+                                    min="-3"
+                                    max="3"
+                                    step="0.1"
+                                    value={newBody.velX}
+                                    onChange={e => setNewBody({...newBody, velX: parseFloat(e.target.value)})}
+                                />
+                            </div>
+                            
+                            <div className="control-group">
+                                <label>Velocity Y</label>
+                                <input
+                                    type="range"
+                                    min="-3"
+                                    max="3"
+                                    step="0.1"
+                                    value={newBody.velY}
+                                    onChange={e => setNewBody({...newBody, velY: parseFloat(e.target.value)})}
+                                />
+                            </div>
+                            
+                            <div className="control-group">
+                                <label>Velocity Z</label>
+                                <input
+                                    type="range"
+                                    min="-3"
+                                    max="3"
+                                    step="0.1"
+                                    value={newBody.velZ}
+                                    onChange={e => setNewBody({...newBody, velZ: parseFloat(e.target.value)})}
+                                />
+                            </div>
+                            
+                            <div className="control-group">
+                                <label>Mass</label>
+                                <input
+                                    type="range"
+                                    min="0.5"
+                                    max="30"
+                                    step="0.5"
+                                    value={newBody.mass}
+                                    onChange={e => setNewBody({...newBody, mass: parseFloat(e.target.value)})}
+                                />
+                                <input
+                                    type="number"
+                                    value={newBody.mass}
+                                    onChange={e => setNewBody({...newBody, mass: parseFloat(e.target.value)})}
+                                />
+                            </div>
+                            
+                            <div className="control-group">
+                                <label>Color</label>
+                                <input
+                                    type="color"
+                                    value={newBody.color}
+                                    onChange={e => setNewBody({...newBody, color: e.target.value})}
+                                />
+                            </div>
+                            
+                            <button className="btn btn-primary" onClick={addNewBody}>
+                                ➕ Add Body
+                            </button>
+                        </div>
+                        
+                        <div className="control-section">
+                            <h3>🎬 Presets</h3>
+                            <div className="preset-grid">
+                                <button className="btn btn-secondary" onClick={() => loadPreset('solar')}>
+                                    ☀️ Solar
+                                </button>
+                                <button className="btn btn-secondary" onClick={() => loadPreset('binary')}>
+                                    ⭐ Binary
+                                </button>
+                                <button className="btn btn-secondary" onClick={() => loadPreset('trappist')}>
+                                    🌍 TRAPPIST
+                                </button>
+                                <button className="btn btn-secondary" onClick={() => loadPreset('chaos')}>
+                                    💥 Chaos
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div className="control-section">
+                            <h3>⚙️ Settings</h3>
+                            <div className="control-group">
+                                <label>Time Scale</label>
+                                <input
+                                    type="range"
+                                    min="0.1"
+                                    max="5"
+                                    step="0.1"
+                                    value={timeScale}
+                                    onChange={e => useStore.setState({ timeScale: parseFloat(e.target.value) })}
+                                />
+                            </div>
+                            
+                            <button
+                                className="btn btn-secondary"
+                                onClick={() => useStore.setState({ showTrails: !showTrails })}
+                            >
+                                {showTrails ? '🌟 Hide' : '✨ Show'} Trails
+                            </button>
+                            
+                            <button
+                                className="btn btn-secondary"
+                                onClick={() => {
+                                    const modes = ['orbit', 'follow', 'free'];
+                                    const currentIndex = modes.indexOf(cameraMode);
+                                    const nextMode = modes[(currentIndex + 1) % modes.length];
+                                    useStore.setState({ cameraMode: nextMode });
+                                }}
+                            >
+                                📹 {cameraMode.toUpperCase()} Cam
+                            </button>
+                            
+                            <button className="btn btn-danger" onClick={reset}>
+                                🗑️ Clear All
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div className="analytics-panel">
+                        <h3 style={{ fontFamily: 'Orbitron', fontSize: '14px', color: '#00ffaa', marginBottom: '10px' }}>
+                            📊 COLLISION LOG
+                        </h3>
+                        <div className="collision-log">
+                            {collisionLog.map((entry, i) => (
+                                <div key={i} className="collision-entry">
+                                    [{entry.time}] {entry.message}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    
+                    <button
+                        className="toggle-btn"
+                        onClick={() => setPanelOpen(!panelOpen)}
+                    >
+                        {panelOpen ? '✕' : '☰'}
+                    </button>
+                </div>
+            );
+        };
+        
+        // ============================================================================
+        // MAIN APP
+        // ============================================================================
+        
+        const App = () => {
+            return (
+                <>
+                    <Canvas
+                        camera={{ position: [50, 40, 50], fov: 60 }}
+                        gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
+                        shadows
+                        dpr={[1, 2]}
+                    >
+                        <Suspense fallback={null}>
+                            <Scene />
+                        </Suspense>
+                    </Canvas>
+                    <HUD />
+                </>
+            );
+        };
+        
+        // ============================================================================
+        // RENDER
+        // ============================================================================
+        
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
