@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<!--
+╔══════════════════════════════════════════════════════════════════════════════╗
+║             CELESTIAL COLLIDER — Browser-Native Simulation Sandbox           ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  CONTROLS                                                                    ║
+║  ─────────────────────────────────────────────────────────────────────────  ║
+║  Camera (Orbit mode)                                                         ║
+║    Left-drag          Orbit around scene                                     ║
+║    Right-drag / Cmd+drag   Pan                                               ║
+║    Scroll / Pinch     Dolly in/out                                           ║
+║                                                                              ║
+║  Keyboard                                                                    ║
+║    Space              Play / Pause                                           ║
+║    R                  Reset current scenario                                 ║
+║    H                  Hide / Show HUD panel                                  ║
+║    Q                  Activate Orbit tool                                    ║
+║    I                  Activate Impulse tool (click-drag a body)              ║
+║    S                  Activate Slice tool (draw line to cut a body)          ║
+║    P                  Toggle profiler overlay                                ║
+║    B                  Toggle bloom                                           ║
+║                                                                              ║
+║  SCENARIOS                                                                   ║
+║    Head-On Impact      Two planets on collision course                       ║
+║    Grazing Impact      Off-center flyby with tidal strip                     ║
+║    Roche Skim          Satellite inside Roche limit → tidal disruption       ║
+║    Tri-Body Dance      Figure-8 three-body orbit                             ║
+║    Debris Ring         Central star + orbiting rubble field                  ║
+║                                                                              ║
+║  HUD GROUPS                                                                  ║
+║    Simulation    Play/Pause/Step, Reset, Seed, Scenario, Export/Import       ║
+║    Physics       θ (Barnes-Hut), ε softening, dt bounds, restitution        ║
+║    Fracture      Peridynamics E/sc/ζ, SPH h/k                               ║
+║    Rendering     Renderer label, bond/octree/BVH overlays, bloom             ║
+║    Debug         Self-test, stress scenarios, profiler toggle                ║
+║    Tools         Orbit / Impulse / Slice selector                            ║
+║                                                                              ║
+║  PERFORMANCE TARGETS                                                         ║
+║    ≥ 60 FPS desktop    ≥ 45 FPS mobile                                       ║
+║    p95 frame < 20 ms desktop / < 22 ms mobile                               ║
+║                                                                              ║
+║  TECH                                                                        ║
+║    Three.js r163 (CDN-pinned)                                                ║
+║    WebGPU preferred; WebGL2 fallback                                         ║
+║    Physics in dedicated Web Worker (module)                                  ║
+║    Meshing in dedicated Web Worker (module)                                  ║
+║    Barnes-Hut O(N log N) gravity, leapfrog integrator                       ║
+║    Peridynamics bond-based fracture                                          ║
+║    Voronoi shatter on heavy impact                                           ║
+║    SPH ejecta (poly6 + Tait EOS + Monaghan viscosity)                       ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="Permissions-Policy" content="cross-origin-isolated=()">
+  <title>Celestial Collider</title>
+
+  <!-- Google Fonts (optional; fallbacks defined in CSS) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+
+  <!-- Import map: pins Three.js r163 from jsDelivr for offline-capable ES modules -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three":          "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+      "three/addons/":  "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100vw; height: 100vh;
+      overflow: hidden;
+      background: #000208;
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      color: #d0e8ff;
+      touch-action: none;
+    }
+
+    #app-container {
+      position: relative;
+      width: 100vw; height: 100vh;
+      overflow: hidden;
+    }
+
+    #main-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: block;
+      outline: none;
+      cursor: grab;
+    }
+
+    #main-canvas:active { cursor: grabbing; }
+
+    #overlay-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Loading screen */
+    #loading-screen {
+      position: fixed;
+      inset: 0;
+      background: #000208;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 9000;
+      transition: opacity 0.4s;
+    }
+    #loading-screen.hidden { opacity: 0; pointer-events: none; }
+
+    .loading-title {
+      font-size: 24px;
+      font-weight: 600;
+      color: #80ccff;
+      letter-spacing: 2px;
+    }
+    .loading-sub {
+      font-size: 13px;
+      color: #4080a0;
+      letter-spacing: 1px;
+    }
+    .loading-bar-wrap {
+      width: 220px; height: 4px;
+      background: rgba(80,160,255,0.15);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .loading-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #2266cc, #44aaff);
+      border-radius: 2px;
+      animation: loadpulse 1.2s ease-in-out infinite alternate;
+    }
+    @keyframes loadpulse {
+      from { width: 20%; opacity: 0.6; }
+      to   { width: 90%; opacity: 1.0; }
+    }
+
+    /* Small bottom status bar */
+    #status-bar {
+      position: fixed;
+      bottom: 6px; left: 8px;
+      font-size: 10px;
+      color: rgba(100,180,255,0.4);
+      pointer-events: none;
+      z-index: 50;
+    }
+
+    /* Warning badge */
+    #perf-warning {
+      position: fixed;
+      bottom: 22px; left: 8px;
+      background: rgba(255,80,40,0.8);
+      color: #fff;
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      display: none;
+      pointer-events: none;
+      z-index: 50;
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading overlay -->
+  <div id="loading-screen">
+    <div class="loading-title">⊛ CELESTIAL COLLIDER</div>
+    <div class="loading-sub">Initializing simulation…</div>
+    <div class="loading-bar-wrap"><div class="loading-bar"></div></div>
+  </div>
+
+  <!-- Main app container -->
+  <div id="app-container">
+    <canvas id="main-canvas" tabindex="0"></canvas>
+    <canvas id="overlay-canvas"></canvas>
+  </div>
+
+  <!-- Status bar -->
+  <div id="status-bar">Celestial Collider — WebGL2/WebGPU N-Body Simulator</div>
+  <div id="perf-warning">⚠ Frame budget exceeded</div>
+
+  <!-- Module bootstrap (auto-runs on import) -->
+  <script type="module" src="./src/main.js"></script>
+
+  <!-- Inline fallback bootstrap (handles the export from main.js) -->
+  <script type="module">
+    // Dismiss loading screen once main.js is executing
+    window.addEventListener('DOMContentLoaded', () => {
+      // Give main.js time to load its deps
+    });
+
+    // main.js calls bootstrap() internally; we just watch for the canvas to get content
+    const checkReady = setInterval(() => {
+      const canvas = document.getElementById('main-canvas');
+      if (canvas && canvas.width > 0) {
+        const loader = document.getElementById('loading-screen');
+        if (loader) {
+          loader.classList.add('hidden');
+          setTimeout(() => loader.remove(), 500);
+        }
+        clearInterval(checkReady);
+      }
+    }, 100);
+
+    // Performance watchdog
+    let lastFrameTime = performance.now();
+    let warnCount = 0;
+    const perfWarning = document.getElementById('perf-warning');
+    function perfWatch() {
+      const now = performance.now();
+      const dt  = now - lastFrameTime;
+      lastFrameTime = now;
+      if (dt > 50 && perfWarning) {
+        warnCount++;
+        perfWarning.style.display = 'block';
+        clearTimeout(perfWarning._timer);
+        perfWarning._timer = setTimeout(() => {
+          perfWarning.style.display = 'none';
+        }, 3000);
+      }
+      requestAnimationFrame(perfWatch);
+    }
+    requestAnimationFrame(perfWatch);
+  </script>
+</body>
+</html>
